@@ -1,55 +1,80 @@
 // src/screens/AddExpenseScreen.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons'; // Importamos Iconos
+import { Ionicons } from '@expo/vector-icons';
 import { RootStackParamList } from '../types/navigation';
 import { ScreenLayout } from '../components/ScreenLayout';
 import { theme } from '../theme';
 import { useExpenseStore } from '../store/useExpenseStore';
-import { CATEGORIES, getCategoryConfig } from '../utils/categoryMap'; // Importamos la lista y la config
+import { getCategoriesByType, getCategoryConfig } from '../utils/categoryMap';
+import { TransactionType, Category } from '../types/expense';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddExpense'>;
 
-const expenseSchema = z.object({
+const transactionSchema = z.object({
   amount: z.string().min(1, "Ingresa un monto"),
   note: z.string().max(50, "Máximo 50 caracteres").optional(),
-  category: z.enum(['Comida', 'Transporte', 'Ocio', 'Salud', 'Hogar', 'Otros'] as const),
+  category: z.string(),
+  type: z.enum(['expense', 'income'] as const),
 });
 
-type ExpenseFormData = z.infer<typeof expenseSchema>;
+type TransactionFormData = z.infer<typeof transactionSchema>;
 
 export const AddExpenseScreen = ({ navigation, route }: Props) => {
-  const { addExpense, updateExpense } = useExpenseStore();
+  const { addTransaction, updateTransaction } = useExpenseStore();
   const expenseToEdit = route.params?.expense;
   const isEditing = !!expenseToEdit;
 
-  // Añadimos 'watch' y 'setValue' para manejar la selección manual de botones
-  const { control, handleSubmit, formState: { errors }, setValue, watch } = useForm<ExpenseFormData>({
-    resolver: zodResolver(expenseSchema),
+  const [transactionType, setTransactionType] = useState<TransactionType>('expense');
+  const [availableCategories, setAvailableCategories] = useState<Category[]>(getCategoriesByType('expense'));
+
+  const { control, handleSubmit, formState: { errors }, setValue, watch, reset } = useForm<TransactionFormData>({
+    resolver: zodResolver(transactionSchema),
     defaultValues: {
       amount: '',
       note: '',
-      category: 'Comida', // Valor inicial
+      category: availableCategories[0] || '',
+      type: 'expense',
     }
   });
 
-  // Observamos el valor actual de 'category' para iluminar el botón correcto
   const selectedCategory = watch('category');
+  const selectedType = watch('type');
 
   useEffect(() => {
     if (expenseToEdit) {
+      const type = expenseToEdit.type || 'expense';
+      setTransactionType(type);
       setValue('amount', expenseToEdit.amount.toString());
       setValue('note', expenseToEdit.note || '');
       setValue('category', expenseToEdit.category);
-      navigation.setOptions({ title: 'Editar Gasto' });
+      setValue('type', type);
+      navigation.setOptions({ 
+        title: type === 'expense' ? 'Editar Gasto' : 'Editar Ingreso'
+      });
     }
   }, [expenseToEdit]);
 
-  const onSubmit = (data: ExpenseFormData) => {
+  useEffect(() => {
+    const newCategories = getCategoriesByType(transactionType);
+    setAvailableCategories(newCategories);
+    
+    // Si la categoría actual no está en las nuevas categorías, cambiar a la primera
+    if (!newCategories.includes(selectedCategory as Category)) {
+      setValue('category', newCategories[0] || '');
+    }
+  }, [transactionType]);
+
+  const handleTypeChange = (type: TransactionType) => {
+    setTransactionType(type);
+    setValue('type', type);
+  };
+
+  const onSubmit = (data: TransactionFormData) => {
     const numericAmount = parseFloat(data.amount.replace(',', '.'));
 
     if (isNaN(numericAmount) || numericAmount <= 0) {
@@ -57,21 +82,20 @@ export const AddExpenseScreen = ({ navigation, route }: Props) => {
       return;
     }
 
+    const transactionData = {
+      amount: numericAmount,
+      note: data.note || '',
+      category: data.category as Category,
+      type: data.type,
+      date: isEditing ? expenseToEdit.date : new Date(),
+    };
+
     if (isEditing) {
-      updateExpense(expenseToEdit.id, {
-        amount: numericAmount,
-        note: data.note || '',
-        category: data.category,
-        date: expenseToEdit.date,
-      });
+      updateTransaction(expenseToEdit.id, transactionData);
     } else {
-      addExpense({
-        amount: numericAmount,
-        note: data.note || '',
-        category: data.category,
-        date: new Date(),
-      });
+      addTransaction(transactionData);
     }
+    
     navigation.goBack();
   };
 
@@ -79,8 +103,46 @@ export const AddExpenseScreen = ({ navigation, route }: Props) => {
     <ScreenLayout>
       <ScrollView showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>
-          {isEditing ? 'Editar Gasto' : 'Nuevo Gasto'}
+          {isEditing 
+            ? (selectedType === 'expense' ? 'Editar Gasto' : 'Editar Ingreso')
+            : (transactionType === 'expense' ? 'Nuevo Gasto' : 'Nuevo Ingreso')
+          }
         </Text>
+
+        {/* SELECTOR DE TIPO DE TRANSACCIÓN */}
+        {!isEditing && (
+          <View style={styles.typeContainer}>
+            <TouchableOpacity
+              style={[styles.typeButton, transactionType === 'expense' && styles.typeButtonActive]}
+              onPress={() => handleTypeChange('expense')}
+            >
+              <Ionicons 
+                name="trending-down" 
+                size={20} 
+                color={transactionType === 'expense' ? '#FFF' : theme.colors.error} 
+              />
+              <Text style={[
+                styles.typeButtonText,
+                transactionType === 'expense' && styles.typeButtonTextActive
+              ]}>Gasto</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.typeButton, transactionType === 'income' && styles.typeButtonActive]}
+              onPress={() => handleTypeChange('income')}
+            >
+              <Ionicons 
+                name="trending-up" 
+                size={20} 
+                color={transactionType === 'income' ? '#FFF' : theme.colors.success} 
+              />
+              <Text style={[
+                styles.typeButtonText,
+                transactionType === 'income' && styles.typeButtonTextActive
+              ]}>Ingreso</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* INPUT: MONTO */}
         <View style={styles.inputContainer}>
@@ -126,7 +188,7 @@ export const AddExpenseScreen = ({ navigation, route }: Props) => {
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Categoría</Text>
           <View style={styles.categoryGrid}>
-            {CATEGORIES.map((cat) => {
+            {availableCategories.map((cat) => {
               const { icon, color } = getCategoryConfig(cat);
               const isSelected = selectedCategory === cat;
 
@@ -135,17 +197,15 @@ export const AddExpenseScreen = ({ navigation, route }: Props) => {
                   key={cat}
                   style={[
                     styles.categoryButton,
-                    isSelected && { backgroundColor: color, borderColor: color } // Si está seleccionado, se pinta
+                    isSelected && { backgroundColor: color, borderColor: color }
                   ]}
-                  onPress={() => setValue('category', cat)} // Al tocar, cambiamos el valor del formulario
+                  onPress={() => setValue('category', cat)}
                 >
-                  {/* Icono */}
                   <Ionicons 
                     name={icon as any} 
                     size={24} 
-                    color={isSelected ? '#FFF' : color} // Blanco si está seleccionado, color original si no
+                    color={isSelected ? '#FFF' : color}
                   />
-                  {/* Texto */}
                   <Text style={[
                     styles.categoryText,
                     isSelected && { color: '#FFF', fontWeight: 'bold' }
@@ -160,7 +220,10 @@ export const AddExpenseScreen = ({ navigation, route }: Props) => {
 
         <TouchableOpacity style={styles.submitButton} onPress={handleSubmit(onSubmit)}>
           <Text style={styles.submitText}>
-            {isEditing ? 'Actualizar Gasto' : 'Guardar Gasto'}
+            {isEditing 
+              ? (selectedType === 'expense' ? 'Actualizar Gasto' : 'Actualizar Ingreso')
+              : (transactionType === 'expense' ? 'Guardar Gasto' : 'Guardar Ingreso')
+            }
           </Text>
         </TouchableOpacity>
         
@@ -173,6 +236,37 @@ export const AddExpenseScreen = ({ navigation, route }: Props) => {
 
 const styles = StyleSheet.create({
   title: { fontSize: theme.fontSize.xl, color: theme.colors.textPrimary, fontWeight: 'bold', marginVertical: theme.spacing.l, textAlign: 'center' },
+  
+  // Estilos para el selector de tipo
+  typeContainer: {
+    flexDirection: 'row',
+    marginBottom: theme.spacing.l,
+    backgroundColor: theme.colors.cardBackground,
+    borderRadius: theme.borderRadius.m,
+    padding: 4,
+  },
+  typeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.m,
+    borderRadius: theme.borderRadius.s,
+    gap: 8,
+  },
+  typeButtonActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  typeButtonText: {
+    color: theme.colors.textSecondary,
+    fontWeight: '600',
+    fontSize: theme.fontSize.m,
+  },
+  typeButtonTextActive: {
+    color: '#FFF',
+    fontWeight: 'bold',
+  },
+
   inputContainer: { marginBottom: theme.spacing.l },
   label: { color: theme.colors.textSecondary, marginBottom: theme.spacing.s, fontWeight: '600' },
   input: { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.cardBorder, borderWidth: 1, borderRadius: theme.borderRadius.m, padding: theme.spacing.m, color: theme.colors.textPrimary, fontSize: theme.fontSize.l },
@@ -183,13 +277,13 @@ const styles = StyleSheet.create({
   // Estilos del Grid de Categorías
   categoryGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap', // Permite que los botones bajen a la siguiente línea
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 10, // Espacio entre botones (si usas Expo SDK nuevo)
+    gap: 10,
   },
   categoryButton: {
-    width: '30%', // Aproximadamente 3 por fila
-    aspectRatio: 1, // Cuadrado perfecto
+    width: '30%',
+    aspectRatio: 1,
     backgroundColor: theme.colors.cardBackground,
     borderWidth: 1,
     borderColor: theme.colors.cardBorder,

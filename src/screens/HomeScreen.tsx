@@ -14,23 +14,30 @@ import { SwipeableRow } from '../components/SwipeableRow';
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 export const HomeScreen = ({ navigation }: Props) => {
-  const expenses = useExpenseStore(state => state.expenses);
-  const getTotalExpenses = useExpenseStore(state => state.getTotalExpenses);
-  const deleteExpense = useExpenseStore(state => state.deleteExpense);
+  const { 
+    transactions, 
+    getTotalExpenses, 
+    getTotalIncomes, 
+    getBalance, 
+    deleteTransaction 
+  } = useExpenseStore();
   
-  const total = getTotalExpenses();
+  const totalExpenses = getTotalExpenses();
+  const totalIncomes = getTotalIncomes();
+  const balance = getBalance();
 
   // Función para manejar el borrado con confirmación
-  const handleDelete = (id: string) => {
+  const handleDelete = (id: string, type: 'expense' | 'income') => {
+    const itemType = type === 'expense' ? 'gasto' : 'ingreso';
     Alert.alert(
-      "Eliminar Gasto",
-      "¿Estás seguro de que quieres borrar este gasto? No se puede deshacer.",
+      `Eliminar ${itemType}`,
+      `¿Estás seguro de que quieres borrar este ${itemType}? No se puede deshacer.`,
       [
         { text: "Cancelar", style: "cancel" },
         { 
           text: "Eliminar", 
           style: "destructive", 
-          onPress: () => deleteExpense(id) 
+          onPress: () => deleteTransaction(id) 
         }
       ]
     );
@@ -54,30 +61,32 @@ export const HomeScreen = ({ navigation }: Props) => {
         </TouchableOpacity>
       </View>
 
-      <BalanceCard total={total} />
+      <BalanceCard 
+        totalExpenses={totalExpenses} 
+        totalIncomes={totalIncomes} 
+        balance={balance} 
+      />
 
       <View style={styles.listSection}>
         <Text style={styles.sectionTitle}>Últimos movimientos</Text>
         
-        {expenses.length === 0 ? (
+        {transactions.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🍃</Text>
+            <Text style={styles.emptyIcon}>🐳</Text>
             <Text style={styles.emptyText}>Todo tranquilo por aquí...</Text>
-            <Text style={styles.emptySubText}>Pulsa el + para añadir tu primer gasto</Text>
+            <Text style={styles.emptySubText}>Pulsa el + para añadir tu primera transacción</Text>
           </View>
         ) : (
           <FlatList
-            data={expenses}
+            data={transactions.slice(0, 20)} // Mostrar solo las últimas 20 transacciones
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 100 }}
             renderItem={({ item }) => (
               <ExpenseItem 
                 item={item}
-                // Al tocar -> Navegamos pasando el gasto
                 onPress={() => navigation.navigate('AddExpense', { expense: item })}
-                // Al mantener -> Borramos
-                onLongPress={() => handleDelete(item.id)}
+                onLongPress={() => handleDelete(item.id, item.type || 'expense')}
               />
             )}
           />

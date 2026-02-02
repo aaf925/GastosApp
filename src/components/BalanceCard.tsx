@@ -3,17 +3,17 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { theme } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient'; // <--- IMPORTANTE
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface Props {
-  total: number;
+  totalExpenses: number;
+  totalIncomes: number;
+  balance: number;
 }
 
-export const BalanceCard = ({ total }: Props) => {
+export const BalanceCard = ({ totalExpenses, totalIncomes, balance }: Props) => {
   return (
-    // Usamos LinearGradient como contenedor principal de la tarjeta
     <LinearGradient
-      // Un gradiente sutil de azul oscuro a un tono un poco más claro
       colors={['#2A2D3E', '#212435']} 
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
@@ -24,14 +24,33 @@ export const BalanceCard = ({ total }: Props) => {
         <Ionicons name="wallet-outline" size={20} color={theme.colors.accent} />
       </View>
       
-      <Text style={styles.amount}>
-        {total.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+      <Text style={[styles.amount, { 
+        color: balance >= 0 ? theme.colors.success : theme.colors.error 
+      }]}>
+        {balance >= 0 ? '+' : ''}{balance.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
       </Text>
       
-      <View style={styles.footer}>
-        <View style={styles.badge}>
-          <Ionicons name="trending-up" size={14} color="#4CC9F0" style={{ marginRight: 4 }} />
-          <Text style={styles.badgeText}>+2.4% vs mes anterior</Text>
+      <View style={styles.statsRow}>
+        <View style={styles.statItem}>
+          <View style={styles.statIconContainer}>
+            <Ionicons name="trending-up" size={16} color={theme.colors.success} />
+          </View>
+          <Text style={styles.statLabel}>Ingresos</Text>
+          <Text style={[styles.statValue, { color: theme.colors.success }]}>
+            +{totalIncomes.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+          </Text>
+        </View>
+
+        <View style={styles.statDivider} />
+
+        <View style={styles.statItem}>
+          <View style={styles.statIconContainer}>
+            <Ionicons name="trending-down" size={16} color={theme.colors.error} />
+          </View>
+          <Text style={styles.statLabel}>Gastos</Text>
+          <Text style={[styles.statValue, { color: theme.colors.error }]}>
+            -{totalExpenses.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
+          </Text>
         </View>
       </View>
     </LinearGradient>
@@ -40,13 +59,11 @@ export const BalanceCard = ({ total }: Props) => {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 24, // Bordes más redondeados
+    borderRadius: 24,
     padding: 24,
     marginTop: 20,
-    // Borde muy sutil para definir la tarjeta
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.05)',
-    // Sombra suave y difusa (ahora se verá mejor al ser la tarjeta sólida)
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
@@ -60,34 +77,49 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   label: {
-    color: '#94A3B8', // Gris azulado elegante
+    color: '#94A3B8',
     fontSize: 14,
     fontWeight: '600',
-    textTransform: 'uppercase', // Hace que se vea más técnico
+    textTransform: 'uppercase',
     letterSpacing: 1,
   },
   amount: {
-    color: '#FFFFFF',
-    fontSize: 42, // Más grande
+    fontSize: 36,
     fontWeight: '700',
     marginBottom: 20,
-    letterSpacing: -1.5, // Números juntos = moderno
+    letterSpacing: -1.5,
   },
-  footer: {
+  statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  badge: {
-    flexDirection: 'row',
+  statItem: {
+    flex: 1,
     alignItems: 'center',
-    backgroundColor: 'rgba(76, 201, 240, 0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
   },
-  badgeText: {
-    color: '#4CC9F0',
+  statIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statLabel: {
+    color: theme.colors.textSecondary,
     fontSize: 12,
     fontWeight: '600',
-  }
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginHorizontal: 20,
+  },
 });
